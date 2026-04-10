@@ -178,18 +178,23 @@ public class NoticeServiceImpl implements NoticeService {
     /**
      * deleteNotice - 공지사항 삭제
      *
-     * cascade = ALL + orphanRemoval = true 설정으로
-     * 공지사항 삭제 시 첨부 이미지도 함께 자동 삭제됩니다.
+     * findWithImagesById 로 이미지 컬렉션을 함께 로딩한 뒤 삭제합니다.
+     * LAZY 컬렉션을 먼저 초기화해야 cascade = ALL + orphanRemoval = true 가
+     * 확실하게 동작하여 FK 제약 위반이 발생하지 않습니다.
      */
     @Override
     @Transactional
     public void deleteNotice(Long id) {
         log.info("공지사항 삭제 시작 - noticeId: {}", id);
 
-        Notice notice = noticeRepository.findById(id)
+        // JOIN FETCH 로 이미지까지 로딩 (orphanRemoval 안전 동작 보장)
+        Notice notice = noticeRepository.findWithImagesById(id)
                 .orElseThrow(() -> new RuntimeException("공지사항을 찾을 수 없습니다. id: " + id));
 
-        // cascade=ALL 로 연관된 이미지도 함께 삭제됩니다.
+        // 명시적으로 이미지 컬렉션을 비워 orphanRemoval 로 먼저 DELETE 되도록 유도
+        notice.clearImages();
+
+        // cascade=ALL 로 Notice 와 남은 이미지가 함께 삭제됩니다.
         noticeRepository.delete(notice);
 
         log.info("공지사항 삭제 완료 - noticeId: {}", id);

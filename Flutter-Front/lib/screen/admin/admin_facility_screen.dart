@@ -60,7 +60,8 @@ class _AdminFacilityScreenState extends State<AdminFacilityScreen> {
   @override
   void initState() {
     super.initState();
-    _fetchApplies();
+    // 첫 프레임 렌더 후 fetch: initState 직접 호출 시 화면 반영이 누락되는 현상 방지
+    WidgetsBinding.instance.addPostFrameCallback((_) => _fetchApplies());
   }
 
   // ─────────────────────────────────────────────
@@ -68,22 +69,33 @@ class _AdminFacilityScreenState extends State<AdminFacilityScreen> {
   // ─────────────────────────────────────────────
 
   Future<void> _fetchApplies() async {
+    if (!mounted) return;
     setState(() => _isLoading = true);
     try {
       final token = await _storage.read(key: 'accessToken');
+      // 캐시 회피: 타임스탬프 파라미터 추가
+      final ts = DateTime.now().millisecondsSinceEpoch;
       final res = await http.get(
-        Uri.parse('${ApiConstants.springBaseUrl}/apply?page=0&size=200'),
-        headers: {'Authorization': 'Bearer $token'},
+        Uri.parse(
+            '${ApiConstants.springBaseUrl}/apply?page=0&size=200&_=$ts'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Cache-Control': 'no-cache',
+        },
       );
       if (res.statusCode == 200) {
         final data = jsonDecode(utf8.decode(res.bodyBytes));
+        // 새로운 List 인스턴스로 복사 → Flutter가 변경을 확실히 감지
+        final fresh =
+            List<dynamic>.from((data['content'] ?? data) as List<dynamic>);
+        if (!mounted) return;
         setState(() {
-          _applies = (data['content'] ?? data) as List<dynamic>;
+          _applies = fresh;
         });
       }
     } catch (_) {
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
