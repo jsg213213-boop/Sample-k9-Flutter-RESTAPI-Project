@@ -31,6 +31,15 @@ public interface ApplyRepository extends JpaRepository<Apply, Long> {
     Page<Apply> findByMemberId(Long memberId, Pageable pageable);
 
     /**
+     * findAllByMemberId - 회원 ID 로 해당 회원의 모든 예약 신청을 조회 (List 반환)
+     * 관리자 회원 삭제 시 연관 예약 데이터를 정리하기 위해 사용합니다.
+     *
+     * @param memberId 조회할 회원 ID
+     * @return 해당 회원의 전체 예약 신청 리스트
+     */
+    List<Apply> findAllByMemberId(Long memberId);
+
+    /**
      * findByStatus - 처리 상태별 예약 신청 조회 (관리자용, 페이징)
      * 관리자 화면에서 대기 중(PENDING), 승인(APPROVED), 반려(REJECTED) 건을 분리 조회합니다.
      *

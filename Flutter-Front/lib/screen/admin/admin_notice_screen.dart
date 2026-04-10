@@ -26,6 +26,25 @@ class _AdminNoticeScreenState extends State<AdminNoticeScreen> {
   List<dynamic> _notices = [];
   bool _isLoading = true;
 
+  /// 검색어 (제목/작성자에 대해 대소문자 무시 부분 일치)
+  String _searchQuery = '';
+
+  /// 검색어가 적용된 리스트 getter
+  List<dynamic> get _filteredNotices {
+    if (_searchQuery.isEmpty) return _notices;
+    return _notices.where((n) {
+      final m = n as Map<String, dynamic>;
+      return (m['title'] ?? '')
+              .toString()
+              .toLowerCase()
+              .contains(_searchQuery) ||
+          (m['writer'] ?? '')
+              .toString()
+              .toLowerCase()
+              .contains(_searchQuery);
+    }).toList();
+  }
+
   @override
   void initState() {
     super.initState();
@@ -229,15 +248,35 @@ class _AdminNoticeScreenState extends State<AdminNoticeScreen> {
         label: const Text('공지 등록'),
         backgroundColor: Colors.purple,
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _notices.isEmpty
-              ? const Center(child: Text('등록된 공지사항이 없습니다.'))
-              : ListView.builder(
-                  padding: const EdgeInsets.all(12),
-                  itemCount: _notices.length,
-                  itemBuilder: (_, i) {
-                    final n = _notices[i] as Map<String, dynamic>;
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: TextField(
+              decoration: const InputDecoration(
+                hintText: '제목 또는 작성자 검색',
+                prefixIcon: Icon(Icons.search),
+                border: OutlineInputBorder(),
+                isDense: true,
+              ),
+              onChanged: (v) =>
+                  setState(() => _searchQuery = v.toLowerCase()),
+            ),
+          ),
+          Expanded(
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : _filteredNotices.isEmpty
+                    ? Center(
+                        child: Text(_searchQuery.isEmpty
+                            ? '등록된 공지사항이 없습니다.'
+                            : '검색 결과가 없습니다.'))
+                    : ListView.builder(
+                        padding: const EdgeInsets.all(12),
+                        itemCount: _filteredNotices.length,
+                        itemBuilder: (_, i) {
+                          final n =
+                              _filteredNotices[i] as Map<String, dynamic>;
                     final regDate = (n['regDate'] ?? '').toString();
                     final dateStr = regDate.length >= 10
                         ? regDate.substring(0, 10)
@@ -284,6 +323,9 @@ class _AdminNoticeScreenState extends State<AdminNoticeScreen> {
                     );
                   },
                 ),
+          ),
+        ],
+      ),
     );
   }
 }

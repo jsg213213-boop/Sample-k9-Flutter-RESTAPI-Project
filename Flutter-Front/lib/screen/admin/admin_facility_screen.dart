@@ -28,6 +28,33 @@ class _AdminFacilityScreenState extends State<AdminFacilityScreen> {
   List<dynamic> _applies = [];
   bool _isLoading = true;
 
+  /// 검색어 (신청자명/시설유형/회원명에 대해 대소문자 무시 부분 일치)
+  String _searchQuery = '';
+
+  /// 검색어가 적용된 리스트 getter
+  List<dynamic> get _filteredApplies {
+    if (_searchQuery.isEmpty) return _applies;
+    return _applies.where((a) {
+      final m = a as Map<String, dynamic>;
+      return (m['applicantName'] ?? '')
+              .toString()
+              .toLowerCase()
+              .contains(_searchQuery) ||
+          (m['facilityType'] ?? '')
+              .toString()
+              .toLowerCase()
+              .contains(_searchQuery) ||
+          (m['memberName'] ?? '')
+              .toString()
+              .toLowerCase()
+              .contains(_searchQuery) ||
+          (m['phone'] ?? '')
+              .toString()
+              .toLowerCase()
+              .contains(_searchQuery);
+    }).toList();
+  }
+
   static const _facilityTypes = ['세미나실', '스터디룸', '강당'];
 
   @override
@@ -356,15 +383,35 @@ class _AdminFacilityScreenState extends State<AdminFacilityScreen> {
         label: const Text('예약 등록'),
         backgroundColor: Colors.teal,
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _applies.isEmpty
-              ? const Center(child: Text('시설 예약 내역이 없습니다.'))
-              : ListView.builder(
-                  padding: const EdgeInsets.all(12),
-                  itemCount: _applies.length,
-                  itemBuilder: (_, i) {
-                    final a = _applies[i] as Map<String, dynamic>;
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: TextField(
+              decoration: const InputDecoration(
+                hintText: '신청자, 시설, 연락처 또는 회원명 검색',
+                prefixIcon: Icon(Icons.search),
+                border: OutlineInputBorder(),
+                isDense: true,
+              ),
+              onChanged: (v) =>
+                  setState(() => _searchQuery = v.toLowerCase()),
+            ),
+          ),
+          Expanded(
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : _filteredApplies.isEmpty
+                    ? Center(
+                        child: Text(_searchQuery.isEmpty
+                            ? '시설 예약 내역이 없습니다.'
+                            : '검색 결과가 없습니다.'))
+                    : ListView.builder(
+                        padding: const EdgeInsets.all(12),
+                        itemCount: _filteredApplies.length,
+                        itemBuilder: (_, i) {
+                          final a =
+                              _filteredApplies[i] as Map<String, dynamic>;
                     final status = (a['status'] ?? 'PENDING') as String;
                     final isPending = status == 'PENDING';
                     return Card(
@@ -457,6 +504,9 @@ class _AdminFacilityScreenState extends State<AdminFacilityScreen> {
                     );
                   },
                 ),
+          ),
+        ],
+      ),
     );
   }
 }

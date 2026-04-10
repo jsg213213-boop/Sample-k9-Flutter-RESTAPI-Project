@@ -25,6 +25,25 @@ class _AdminInquiryScreenState extends State<AdminInquiryScreen> {
   List<dynamic> _inquiries = [];
   bool _isLoading = true;
 
+  /// 검색어 (제목/작성자에 대해 대소문자 무시 부분 일치)
+  String _searchQuery = '';
+
+  /// 검색어가 적용된 리스트 getter
+  List<dynamic> get _filteredInquiries {
+    if (_searchQuery.isEmpty) return _inquiries;
+    return _inquiries.where((inq) {
+      final m = inq as Map<String, dynamic>;
+      return (m['title'] ?? '')
+              .toString()
+              .toLowerCase()
+              .contains(_searchQuery) ||
+          (m['writer'] ?? '')
+              .toString()
+              .toLowerCase()
+              .contains(_searchQuery);
+    }).toList();
+  }
+
   @override
   void initState() {
     super.initState();
@@ -302,15 +321,35 @@ class _AdminInquiryScreenState extends State<AdminInquiryScreen> {
               icon: const Icon(Icons.refresh), onPressed: _fetchInquiries),
         ],
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _inquiries.isEmpty
-              ? const Center(child: Text('문의가 없습니다.'))
-              : ListView.builder(
-                  padding: const EdgeInsets.all(12),
-                  itemCount: _inquiries.length,
-                  itemBuilder: (_, i) {
-                    final inq = _inquiries[i] as Map<String, dynamic>;
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: TextField(
+              decoration: const InputDecoration(
+                hintText: '제목 또는 작성자 검색',
+                prefixIcon: Icon(Icons.search),
+                border: OutlineInputBorder(),
+                isDense: true,
+              ),
+              onChanged: (v) =>
+                  setState(() => _searchQuery = v.toLowerCase()),
+            ),
+          ),
+          Expanded(
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : _filteredInquiries.isEmpty
+                    ? Center(
+                        child: Text(_searchQuery.isEmpty
+                            ? '문의가 없습니다.'
+                            : '검색 결과가 없습니다.'))
+                    : ListView.builder(
+                        padding: const EdgeInsets.all(12),
+                        itemCount: _filteredInquiries.length,
+                        itemBuilder: (_, i) {
+                          final inq =
+                              _filteredInquiries[i] as Map<String, dynamic>;
                     final answered = (inq['answered'] ?? false) as bool;
                     final secret = (inq['secret'] ?? false) as bool;
                     return Card(
@@ -373,6 +412,9 @@ class _AdminInquiryScreenState extends State<AdminInquiryScreen> {
                     );
                   },
                 ),
+          ),
+        ],
+      ),
     );
   }
 }

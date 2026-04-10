@@ -1,10 +1,22 @@
 package com.busanit501.api5012.service.library;
 
+import com.busanit501.api5012.domain.library.Apply;
+import com.busanit501.api5012.domain.library.BookStatus;
+import com.busanit501.api5012.domain.library.EventApplication;
+import com.busanit501.api5012.domain.library.Inquiry;
 import com.busanit501.api5012.domain.library.Member;
 import com.busanit501.api5012.domain.library.MemberRole;
+import com.busanit501.api5012.domain.library.Rental;
+import com.busanit501.api5012.domain.library.RentalStatus;
+import com.busanit501.api5012.domain.library.WishBook;
 import com.busanit501.api5012.dto.library.MemberDTO;
 import com.busanit501.api5012.dto.library.MemberSignupDTO;
+import com.busanit501.api5012.repository.library.ApplyRepository;
+import com.busanit501.api5012.repository.library.EventApplicationRepository;
+import com.busanit501.api5012.repository.library.InquiryRepository;
 import com.busanit501.api5012.repository.library.MemberRepository;
+import com.busanit501.api5012.repository.library.RentalRepository;
+import com.busanit501.api5012.repository.library.WishBookRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -42,6 +54,17 @@ public class MemberLibraryServiceImpl implements MemberLibraryService {
 
     /** MemberRepository - 회원 엔티티에 대한 DB 접근 */
     private final MemberRepository memberRepository;
+
+    /**
+     * 회원 삭제 시 연관된 데이터(대여/예약/행사신청/희망도서/문의)를 함께 정리하기 위한 레포지토리들.
+     * Member 에 ManyToOne 으로 연결된 모든 엔티티를 먼저 삭제하지 않으면
+     * 외래키 제약 조건(FK constraint) 위반으로 DELETE 가 실패합니다.
+     */
+    private final RentalRepository rentalRepository;
+    private final ApplyRepository applyRepository;
+    private final EventApplicationRepository eventApplicationRepository;
+    private final WishBookRepository wishBookRepository;
+    private final InquiryRepository inquiryRepository;
 
     /**
      * PasswordEncoder - BCrypt 비밀번호 암호화
@@ -329,20 +352,78 @@ public class MemberLibraryServiceImpl implements MemberLibraryService {
     }
 
     /**
-     * deleteMember - 관리자 전용 회원 삭제
+     * deleteMember - 관리자 전용 회원 삭제 (연관 데이터 정리 포함)
      *
-     * JPA findById() 로 존재 확인 후 삭제합니다.
-     * 연관된 대여/예약 등의 외래키 제약은 DB 레벨에서 처리해야 하며,
-     * 필요 시 사전에 CASCADE 설정 또는 연관 데이터 정리 로직을 추가하세요.
+     * [문제 배경]
+     * Member 를 참조하는 엔티티(Rental, Apply, EventApplication, WishBook, Inquiry)
+     * 들의 외래키가 nullable = false 로 선언되어 있어, Member 를 바로 delete 하면
+     * FK 제약 조건 위반(DataIntegrityViolationException) 이 발생합니다.
+     *
+     * [처리 순서]
+     * 1. 활성 대여(RENTING/EXTENDED) 가 있다면 해당 Book 의 상태를 AVAILABLE 로 되돌립니다.
+     *    → 회원을 지워도 도서 재고는 올바른 상태가 되도록.
+     * 2. Rental 삭제
+     * 3. Apply(시설예약) 삭제
+     * 4. EventApplication(행사신청) 삭제
+     * 5. WishBook(희망도서) 삭제
+     * 6. Inquiry(문의사항) 삭제 - Reply 는 orphanRemoval=true 로 자동 삭제됨
+     * 7. Member 삭제
+     *
+     * 전체 동작은 하나의 @Transactional 안에서 일어나므로 중간에 예외가 발생하면 롤백됩니다.
      */
     @Override
     @Transactional
     public void deleteMember(Long id) {
-        log.info("관리자 회원 삭제 - id: {}", id);
+        log.info("관리자 회원 삭제 시작 - id: {}", id);
 
         Member member = memberRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("해당 회원을 찾을 수 없습니다. id: " + id));
 
+        // 1. 활성 대여가 남아있다면 도서 상태를 AVAILABLE 로 복구 후 Rental 삭제
+        List<Rental> rentals = rentalRepository.findByMemberIdOrderByRentalDateDesc(id);
+        for (Rental rental : rentals) {
+            RentalStatus status = rental.getStatus();
+            if (status == RentalStatus.RENTING || status == RentalStatus.EXTENDED) {
+                // 대여중이던 책을 회원 삭제로 인해 잃어버리지 않도록 재고 복구
+                rental.getBook().changeStatus(BookStatus.AVAILABLE);
+                log.info("회원 삭제로 인한 도서 상태 복구 - bookId: {}, AVAILABLE",
+                        rental.getBook().getId());
+            }
+        }
+        if (!rentals.isEmpty()) {
+            rentalRepository.deleteAll(rentals);
+            log.info("연관 대여기록 {} 건 삭제", rentals.size());
+        }
+
+        // 2. 시설 예약 신청 삭제
+        List<Apply> applies = applyRepository.findAllByMemberId(id);
+        if (!applies.isEmpty()) {
+            applyRepository.deleteAll(applies);
+            log.info("연관 시설예약 {} 건 삭제", applies.size());
+        }
+
+        // 3. 행사 신청 삭제
+        List<EventApplication> eventApps = eventApplicationRepository.findAllByMemberId(id);
+        if (!eventApps.isEmpty()) {
+            eventApplicationRepository.deleteAll(eventApps);
+            log.info("연관 행사신청 {} 건 삭제", eventApps.size());
+        }
+
+        // 4. 희망 도서 삭제
+        List<WishBook> wishBooks = wishBookRepository.findAllByMemberId(id);
+        if (!wishBooks.isEmpty()) {
+            wishBookRepository.deleteAll(wishBooks);
+            log.info("연관 희망도서 {} 건 삭제", wishBooks.size());
+        }
+
+        // 5. 문의사항 삭제 (Reply 는 orphanRemoval=true 로 자동 삭제)
+        List<Inquiry> inquiries = inquiryRepository.findByMemberId(id);
+        if (!inquiries.isEmpty()) {
+            inquiryRepository.deleteAll(inquiries);
+            log.info("연관 문의사항 {} 건 삭제", inquiries.size());
+        }
+
+        // 6. 최종 회원 삭제
         memberRepository.delete(member);
         log.info("관리자 회원 삭제 완료 - id: {}", id);
     }

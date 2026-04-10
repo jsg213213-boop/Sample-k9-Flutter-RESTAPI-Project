@@ -30,6 +30,15 @@ public interface WishBookRepository extends JpaRepository<WishBook, Long> {
     Page<WishBook> findByMemberId(Long memberId, Pageable pageable);
 
     /**
+     * findAllByMemberId - 회원 ID 로 해당 회원의 모든 희망도서 신청을 조회 (List 반환)
+     * 관리자 회원 삭제 시 연관 희망도서 데이터를 정리하기 위해 사용합니다.
+     *
+     * @param memberId 조회할 회원 ID
+     * @return 해당 회원의 전체 희망도서 신청 리스트
+     */
+    List<WishBook> findAllByMemberId(Long memberId);
+
+    /**
      * findByStatus - 처리 상태별 희망 도서 조회 (관리자용, 페이징)
      * 관리자 화면에서 처리 대기 중(REQUESTED), 승인(APPROVED), 반려(REJECTED) 건을 분리 조회합니다.
      *

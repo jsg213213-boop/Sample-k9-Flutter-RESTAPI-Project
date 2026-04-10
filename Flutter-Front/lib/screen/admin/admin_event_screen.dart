@@ -27,6 +27,32 @@ class _AdminEventScreenState extends State<AdminEventScreen> {
   List<dynamic> _events = [];
   bool _isLoading = true;
 
+  /// 정렬 방향: false = 내림차순(최신순, 기본값), true = 오름차순(과거순)
+  bool _sortAscending = false;
+
+  /// 검색어 (제목/카테고리/장소에 대해 대소문자 무시 부분 일치)
+  String _searchQuery = '';
+
+  /// 검색어가 적용된 리스트 getter
+  List<dynamic> get _filteredEvents {
+    if (_searchQuery.isEmpty) return _events;
+    return _events.where((e) {
+      final m = e as Map<String, dynamic>;
+      return (m['title'] ?? '')
+              .toString()
+              .toLowerCase()
+              .contains(_searchQuery) ||
+          (m['category'] ?? '')
+              .toString()
+              .toLowerCase()
+              .contains(_searchQuery) ||
+          (m['place'] ?? '')
+              .toString()
+              .toLowerCase()
+              .contains(_searchQuery);
+    }).toList();
+  }
+
   @override
   void initState() {
     super.initState();
@@ -41,20 +67,50 @@ class _AdminEventScreenState extends State<AdminEventScreen> {
     setState(() => _isLoading = true);
     try {
       final token = await _storage.read(key: 'accessToken');
+      // 캐시 회피: 타임스탬프 파라미터 추가 (일부 환경에서 HTTP 캐시 방지)
+      final ts = DateTime.now().millisecondsSinceEpoch;
       final res = await http.get(
-        Uri.parse('${ApiConstants.springBaseUrl}/event?page=0&size=100'),
-        headers: {'Authorization': 'Bearer $token'},
+        Uri.parse(
+            '${ApiConstants.springBaseUrl}/event?page=0&size=200&_=$ts'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Cache-Control': 'no-cache',
+        },
       );
       if (res.statusCode == 200) {
         final data = jsonDecode(utf8.decode(res.bodyBytes));
+        // 새로운 List 인스턴스로 복사 → Flutter가 변경을 확실히 감지
+        final fresh =
+            List<dynamic>.from((data['content'] ?? data) as List<dynamic>);
+        _sortByDate(fresh);
+        if (!mounted) return;
         setState(() {
-          _events = (data['content'] ?? data) as List<dynamic>;
+          _events = fresh;
         });
       }
     } catch (_) {
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  /// eventDate(yyyy-MM-dd) 기준으로 리스트를 정렬한다.
+  /// _sortAscending == true  → 과거 → 미래 (오름차순)
+  /// _sortAscending == false → 미래 → 과거 (내림차순, 최신순)
+  void _sortByDate(List<dynamic> list) {
+    list.sort((a, b) {
+      final da = (a as Map)['eventDate']?.toString() ?? '';
+      final db = (b as Map)['eventDate']?.toString() ?? '';
+      return _sortAscending ? da.compareTo(db) : db.compareTo(da);
+    });
+  }
+
+  /// 정렬 방향 토글 (정렬 아이콘 클릭 시)
+  void _toggleSortOrder() {
+    setState(() {
+      _sortAscending = !_sortAscending;
+      _sortByDate(_events);
+    });
   }
 
   Future<bool> _createEvent(Map<String, dynamic> body) async {
@@ -271,7 +327,16 @@ class _AdminEventScreenState extends State<AdminEventScreen> {
         centerTitle: true,
         actions: [
           IconButton(
-              icon: const Icon(Icons.refresh), onPressed: _fetchEvents),
+            tooltip: _sortAscending ? '오름차순 (과거→미래)' : '내림차순 (최신순)',
+            icon: Icon(_sortAscending
+                ? Icons.arrow_upward
+                : Icons.arrow_downward),
+            onPressed: _toggleSortOrder,
+          ),
+          IconButton(
+              tooltip: '새로고침',
+              icon: const Icon(Icons.refresh),
+              onPressed: _fetchEvents),
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
@@ -280,15 +345,35 @@ class _AdminEventScreenState extends State<AdminEventScreen> {
         label: const Text('이벤트 등록'),
         backgroundColor: Colors.orange,
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _events.isEmpty
-              ? const Center(child: Text('등록된 이벤트가 없습니다.'))
-              : ListView.builder(
-                  padding: const EdgeInsets.all(12),
-                  itemCount: _events.length,
-                  itemBuilder: (_, i) {
-                    final e = _events[i] as Map<String, dynamic>;
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: TextField(
+              decoration: const InputDecoration(
+                hintText: '제목, 카테고리 또는 장소 검색',
+                prefixIcon: Icon(Icons.search),
+                border: OutlineInputBorder(),
+                isDense: true,
+              ),
+              onChanged: (v) =>
+                  setState(() => _searchQuery = v.toLowerCase()),
+            ),
+          ),
+          Expanded(
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : _filteredEvents.isEmpty
+                    ? Center(
+                        child: Text(_searchQuery.isEmpty
+                            ? '등록된 이벤트가 없습니다.'
+                            : '검색 결과가 없습니다.'))
+                    : ListView.builder(
+                        padding: const EdgeInsets.all(12),
+                        itemCount: _filteredEvents.length,
+                        itemBuilder: (_, i) {
+                          final e =
+                              _filteredEvents[i] as Map<String, dynamic>;
                     final date = e['eventDate'] ?? '-';
                     final status =
                         (e['status'] ?? 'OPEN').toString();
@@ -330,6 +415,9 @@ class _AdminEventScreenState extends State<AdminEventScreen> {
                     );
                   },
                 ),
+          ),
+        ],
+      ),
     );
   }
 }
