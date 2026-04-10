@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:developer';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -58,7 +59,8 @@ class LoginController extends ChangeNotifier {
         // ✅ [추가] 콘솔에 액세스 토큰 출력
         print('======================================================');
         print('>>> [로그인 성공] 액세스 토큰 발급 완료');
-        print('Access Token: $accessToken');
+        // 로그인 성공 시 출력 부분
+        log('Full Access Token: $accessToken');
         print('======================================================');
 
         await secureStorage.write(key: 'accessToken', value: accessToken);

@@ -40,13 +40,24 @@ class MyLoginScreen extends StatelessWidget {
                 const SizedBox(height: 16,),
 
                 loginController.isLoading ? const CircularProgressIndicator()
-                    : SizedBox(
-                  // 목적: 가로 전체 크기 차지
-                  width: double.infinity,
-                  child: ElevatedButton(
-                      onPressed: () => loginController.login(context),
-                      child: const Text('로그인')),
-                ),
+                    : Column(
+                      children: [
+                        SizedBox(
+                                          // 목적: 가로 전체 크기 차지
+                                          width: double.infinity,
+                                          child: ElevatedButton(
+                          onPressed: () => loginController.login(context),
+                          child: const Text('로그인')),
+                                        ),
+                        SizedBox(
+                          // 목적: 가로 전체 크기 차지
+                          width: double.infinity,
+                          child: ElevatedButton(
+                              onPressed: () =>  Navigator.pushNamed(context, '/signup'),
+                              child: const Text('회원가입')),
+                        ),
+                      ],
+                    ),
 
 
 

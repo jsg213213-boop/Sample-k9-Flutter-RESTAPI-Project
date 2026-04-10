@@ -22,6 +22,38 @@ class NoticeController extends ChangeNotifier {
   Future<String?> _getAccessToken() async =>
       await _secureStorage.read(key: "accessToken");
 
+
+  // NoticeController 내부에 추가
+  NoticeModel? _selectedNotice;
+  NoticeModel? get selectedNotice => _selectedNotice;
+
+  Future<void> fetchNoticeById(int id) async {
+    _isLoading = true;
+    _selectedNotice = null; // 이전 데이터 초기화
+    notifyListeners();
+
+    try {
+      final String? accessToken = await _getAccessToken();
+      // 상세 조회 API 엔드포인트 (백엔드 경로 확인 필요: 보통 /api/notice/{id})
+      final url = Uri.parse('${ApiConstants.springBaseUrl}/notice/$id');
+
+      final response = await http.get(url, headers: {
+        if (accessToken != null) 'Authorization': 'Bearer $accessToken',
+        'Content-Type': 'application/json',
+      });
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> data = jsonDecode(utf8.decode(response.bodyBytes));
+        _selectedNotice = NoticeModel.fromJson(data); // 여기서 본문(content)이 담긴 모델 생성
+      }
+    } catch (e) {
+      print('공지사항 상세 로드 에러: $e');
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
   /// 공지사항 목록 조회 (상단 고정 공지 우선 정렬은 서버에서 처리)
   Future<void> fetchNotices({int page = 0, int size = 20}) async {
     _isLoading = true;

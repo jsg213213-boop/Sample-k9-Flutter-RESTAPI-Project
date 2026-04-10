@@ -110,5 +110,19 @@ public class TokenCheckFilter extends OncePerRequestFilter {
             throw new AccessTokenException(AccessTokenException.TOKEN_ERROR.EXPIRED);
         }
     }
+
+    @Override
+    protected boolean shouldNotFilter(HttpServletRequest request) throws ServletException {
+        String path = request.getRequestURI();
+
+        // 아래 경로들로 들어오는 요청은 필터 로직(토큰 검사)을 건너뜁니다.
+        if (path.startsWith("/api/member/check-mid") ||
+                path.startsWith("/api/member/check-email") ||
+                path.startsWith("/api/member/signup")) {
+            return true;
+        }
+
+        return false;
+    }
 }
 

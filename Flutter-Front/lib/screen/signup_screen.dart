@@ -64,13 +64,27 @@ class SignupScreen extends StatelessWidget {
               const SizedBox(height: 16),
 
               // 지역 (선택)
-              TextField(
-                controller: ctrl.regionController,
+              // 지역 선택 (기존 TextField 제거 후 교체)
+              DropdownButtonFormField<String>(
+                value: ctrl.selectedRegion, // 컨트롤러의 현재 선택값
                 decoration: const InputDecoration(
-                  labelText: '지역 (선택)',
-                  hintText: '예: 부산, 서울',
+                  labelText: '지역 선택 *',
                   border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.map_outlined), // 아이콘 추가로 가독성 향상
                 ),
+                hint: const Text('거주 지역을 선택하세요'),
+                // 리스트를 드롭다운 아이템으로 변환
+                items: ctrl.regions.map((String region) {
+                  return DropdownMenuItem<String>(
+                    value: region,
+                    child: Text(region),
+                  );
+                }).toList(),
+                onChanged: (String? newValue) {
+                  ctrl.setRegion(newValue); // 선택 시 컨트롤러 업데이트
+                },
+                // 선택 안 했을 때의 유효성 검사를 추가하고 싶다면 validator 사용 가능
+                validator: (value) => value == null ? '지역을 선택해주세요' : null,
               ),
               const SizedBox(height: 16),
 

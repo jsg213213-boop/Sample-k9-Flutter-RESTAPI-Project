@@ -99,6 +99,24 @@ public class CustomSecurityConfig {
                 TokenCheckFilter.class
         );
 
+        // 추가: 특정 경로에 대한 권한 허용 설정
+        http.authorizeHttpRequests(auth -> auth
+                // 1. 스웨거 관련 모든 경로 허용
+                .requestMatchers(
+                        "/swagger-ui/**",
+                        "/v3/api-docs/**",
+                        "/swagger-resources/**",
+                        "/webjars/**",
+                        "/swagger-ui.html"
+                ).permitAll()
+                // 아이디 중복 체크, 이메일 중복 체크는 로그인 없이도 가능해야 하므로 허용
+                .requestMatchers("/api/member/check-mid", "/api/member/check-email").permitAll()
+                // 회원가입 경로도 보통 제외해야 하므로 함께 추가하는 것을 추천합니다.
+                .requestMatchers("/api/member/signup").permitAll()
+                // 그 외 모든 요청은 인증 필요
+                .anyRequest().authenticated()
+        );
+
 // CSRF 비활성화
         http.csrf(httpSecurityCsrfConfigurer -> httpSecurityCsrfConfigurer.disable()); // REST API 환경에서 CSRF 보호 비활성화
 

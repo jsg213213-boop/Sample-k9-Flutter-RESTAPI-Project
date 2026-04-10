@@ -33,7 +33,7 @@ class _MySplash2State extends State<MySplash> {
       home: Scaffold(
         body: Container(
           decoration: BoxDecoration(
-              color: Colors.amberAccent
+              // color: Colors.amberAccent
           ),
           // 간단 구성 1) 문자열 2) 이미지 구성.
           child: Row(
@@ -48,7 +48,7 @@ class _MySplash2State extends State<MySplash> {
                           fontSize: 32,
                           fontWeight: FontWeight.w800
                       ),
-                      '나의 첫 Splash 화면'
+                      '부산 도서관 샘플 프로젝트'
                   ),
                   Image.asset('assets/images/logo.jpg'),
                   // 공간 여백 잡는 위젯을 사용.
