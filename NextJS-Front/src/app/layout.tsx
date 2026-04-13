@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { AuthProvider } from "@/lib/auth-context";
+import Navbar from "@/components/Navbar";
 
 export const metadata: Metadata = {
   title: "부산도서관 관리 시스템",
@@ -15,7 +16,10 @@ export default function RootLayout({
   return (
     <html lang="ko">
       <body>
-        <AuthProvider>{children}</AuthProvider>
+        <AuthProvider>
+          <Navbar />
+          {children}
+        </AuthProvider>
       </body>
     </html>
   );

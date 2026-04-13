@@ -1,53 +1,77 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState, FormEvent } from "react";
 import Link from "next/link";
 import { api, PageResponse } from "@/lib/api";
 import { Book } from "@/types/book";
 
 /**
- * 도서 목록 페이지 — 참고 구현
- *
- * GET /api/book/list?page=0&size=20 로 Spring Page<BookDTO> 를 가져와 표시합니다.
- * 실제 백엔드 엔드포인트/파라미터에 맞게 조정하세요.
+ * 도서 목록 — GET /api/book?keyword=&page=&size=
  */
 export default function BooksPage() {
   const [books, setBooks] = useState<Book[]>([]);
+  const [keyword, setKeyword] = useState("");
+  const [submittedKeyword, setSubmittedKeyword] = useState("");
+  const [page, setPage] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const size = 12;
+
+  const fetchBooks = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await api.get<PageResponse<Book>>("/book", {
+        params: {
+          keyword: submittedKeyword || undefined,
+          page,
+          size,
+        },
+      });
+      setBooks(res.data.content ?? []);
+      setTotalPages(res.data.totalPages ?? 0);
+    } catch (err: unknown) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "도서 목록을 불러오지 못했습니다.",
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, [submittedKeyword, page]);
+
   useEffect(() => {
-    let mounted = true;
-    (async () => {
-      try {
-        const res = await api.get<PageResponse<Book>>("/book/list", {
-          params: { page: 0, size: 20 },
-        });
-        if (!mounted) return;
-        setBooks(res.data.content ?? []);
-      } catch (err: unknown) {
-        const msg =
-          err instanceof Error
-            ? err.message
-            : "도서 목록을 불러오지 못했습니다.";
-        if (mounted) setError(msg);
-      } finally {
-        if (mounted) setLoading(false);
-      }
-    })();
-    return () => {
-      mounted = false;
-    };
-  }, []);
+    fetchBooks();
+  }, [fetchBooks]);
+
+  const handleSearch = (e: FormEvent) => {
+    e.preventDefault();
+    setPage(0);
+    setSubmittedKeyword(keyword.trim());
+  };
 
   return (
     <main className="mx-auto min-h-screen max-w-5xl p-6">
-      <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-bold">📚 도서 목록</h1>
-        <Link href="/" className="text-sm text-brand-600 hover:underline">
-          ← 홈
-        </Link>
-      </div>
+      <h1 className="mb-4 text-2xl font-bold">📚 도서 목록</h1>
+
+      <form onSubmit={handleSearch} className="mb-6 flex gap-2">
+        <input
+          type="text"
+          value={keyword}
+          onChange={(e) => setKeyword(e.target.value)}
+          placeholder="도서명 / 저자 / 출판사 검색"
+          className="flex-1 rounded border border-gray-300 px-3 py-2"
+        />
+        <button
+          type="submit"
+          className="rounded bg-brand-600 px-4 py-2 text-white hover:bg-brand-700"
+        >
+          검색
+        </button>
+      </form>
 
       {loading && <p className="text-gray-500">로딩 중...</p>}
       {error && (
@@ -55,32 +79,56 @@ export default function BooksPage() {
       )}
 
       {!loading && !error && (
-        <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {books.length === 0 ? (
-            <li className="col-span-full text-gray-500">
-              등록된 도서가 없습니다.
-            </li>
-          ) : (
-            books.map((book) => (
-              <li
-                key={book.id}
-                className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm transition hover:shadow-md"
-              >
-                <Link href={`/books/${book.id}`} className="block">
-                  <h2 className="truncate text-lg font-semibold">
-                    {book.bookTitle}
-                  </h2>
-                  <p className="mt-1 text-sm text-gray-600">{book.author}</p>
-                  {book.publisher && (
-                    <p className="mt-1 text-xs text-gray-400">
-                      {book.publisher}
-                    </p>
-                  )}
-                </Link>
+        <>
+          <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {books.length === 0 ? (
+              <li className="col-span-full text-gray-500">
+                검색 결과가 없습니다.
               </li>
-            ))
+            ) : (
+              books.map((book) => (
+                <li
+                  key={book.id}
+                  className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm transition hover:shadow-md"
+                >
+                  <Link href={`/books/${book.id}`} className="block">
+                    <h2 className="truncate text-lg font-semibold">
+                      {book.bookTitle}
+                    </h2>
+                    <p className="mt-1 text-sm text-gray-600">{book.author}</p>
+                    {book.publisher && (
+                      <p className="mt-1 text-xs text-gray-400">
+                        {book.publisher}
+                      </p>
+                    )}
+                  </Link>
+                </li>
+              ))
+            )}
+          </ul>
+
+          {totalPages > 1 && (
+            <div className="mt-6 flex items-center justify-center gap-2">
+              <button
+                disabled={page === 0}
+                onClick={() => setPage((p) => Math.max(0, p - 1))}
+                className="rounded border px-3 py-1 disabled:opacity-40"
+              >
+                이전
+              </button>
+              <span className="text-sm text-gray-600">
+                {page + 1} / {totalPages}
+              </span>
+              <button
+                disabled={page >= totalPages - 1}
+                onClick={() => setPage((p) => p + 1)}
+                className="rounded border px-3 py-1 disabled:opacity-40"
+              >
+                다음
+              </button>
+            </div>
           )}
-        </ul>
+        </>
       )}
     </main>
   );

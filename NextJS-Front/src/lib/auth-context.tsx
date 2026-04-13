@@ -1,19 +1,17 @@
 "use client";
 
-/**
- * 인증 상태 Context
- * - 로그인/로그아웃/현재 회원 정보를 전역 제공
- * - localStorage 기반 초기화 (클라이언트 전용)
- */
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
+  useRef,
   useState,
   ReactNode,
 } from "react";
 import {
   clearToken,
+  getTokenRemainingMs,
   loadMember,
   loadToken,
   MemberInfo,
@@ -25,7 +23,7 @@ interface AuthContextValue {
   token: string | null;
   member: MemberInfo | null;
   loading: boolean;
-  login: (token: string, member: MemberInfo) => void;
+  login: (token: string, member: MemberInfo, refresh?: string) => void;
   logout: () => void;
 }
 
@@ -35,24 +33,50 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [token, setToken] = useState<string | null>(null);
   const [member, setMember] = useState<MemberInfo | null>(null);
   const [loading, setLoading] = useState(true);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  useEffect(() => {
-    setToken(loadToken());
-    setMember(loadMember());
-    setLoading(false);
-  }, []);
-
-  const login = (newToken: string, newMember: MemberInfo) => {
-    saveToken(newToken);
-    saveMember(newMember);
-    setToken(newToken);
-    setMember(newMember);
-  };
-
-  const logout = () => {
+  const logout = useCallback(() => {
+    if (timerRef.current) clearTimeout(timerRef.current);
     clearToken();
     setToken(null);
     setMember(null);
+  }, []);
+
+  const scheduleAutoLogout = useCallback(
+    (t: string) => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+      const remaining = getTokenRemainingMs(t);
+      if (remaining === null) return;
+      if (remaining <= 0) {
+        logout();
+        return;
+      }
+      timerRef.current = setTimeout(() => {
+        logout();
+        if (typeof window !== "undefined") window.location.href = "/login";
+      }, remaining);
+    },
+    [logout],
+  );
+
+  useEffect(() => {
+    const t = loadToken();
+    const m = loadMember();
+    setToken(t);
+    setMember(m);
+    if (t) scheduleAutoLogout(t);
+    setLoading(false);
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, [scheduleAutoLogout]);
+
+  const login = (newToken: string, newMember: MemberInfo, refresh?: string) => {
+    saveToken(newToken, refresh);
+    saveMember(newMember);
+    setToken(newToken);
+    setMember(newMember);
+    scheduleAutoLogout(newToken);
   };
 
   return (

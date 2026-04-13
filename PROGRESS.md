@@ -42,65 +42,84 @@
 
 ## 2. 현재 작업 중
 
-*(현재 활성 작업 없음 — 다음 작업 후보에서 선택)*
+*(현재 활성 작업 없음 — Phase 1 완료, Phase 2~3 주요 화면 초기 구현 완료. 다음: 로컬 `npm install && npm run dev` 검증 후 실제 API 흐름 테스트)*
 
 ---
 
 ## 3. 다음 작업 후보 (우선순위 순)
 
 ### 🔴 P0 — 즉시 진행 가능 / 기반 검증
-- [ ] **Next.js 로컬 검증**: 사용자 로컬에서 `cd NextJS-Front && npm install && npm run dev` 실행 후 오류 확인
-- [ ] **로그인 API 스키마 정합성 확인**: Spring `MemberController` 의 `/api/member/login` 실제 요청/응답 필드와 [NextJS-Front/src/app/login/page.tsx](NextJS-Front/src/app/login/page.tsx) 매칭 검증 후 필요 시 수정
-- [ ] **CORS 설정 점검**: [CustomSecurityConfig.java](Spring-Back/SpringBasic/api5012/src/main/java/com/busanit501/api5012/config/CustomSecurityConfig.java) 가 `http://localhost:3000` Origin 을 허용하는지 확인
+- [x] **Next.js 로컬 검증**: `npm install` + `npx tsc --noEmit` + `npx vitest run` + `npx next build` 모두 통과 (21 routes, 0 type errors, 9/9 tests)
+- [x] **로그인 API 스키마 정합성 확인**: 실제 엔드포인트는 `POST /generateToken` (APILoginFilter, `/api` 프리픽스 밖). `constants/api.ts` 에 `AUTH_BASE_URL` 추가, [login/page.tsx](NextJS-Front/src/app/login/page.tsx) 가 `/generateToken` → `/api/member/me` 2단계 호출로 수정됨
+- [ ] **CORS 설정 점검**: [CustomSecurityConfig.java](Spring-Back/SpringBasic/api5012/src/main/java/com/busanit501/api5012/config/CustomSecurityConfig.java) 가 `http://localhost:3000` Origin 을 허용하는지 확인 (백엔드 띄워 실제 API 호출 테스트 필요)
 
 ### 🟠 P1 — Next.js Phase 1 (인증 & 홈)
-- [ ] `/signup` 페이지 — 회원가입 폼
-- [ ] `Navbar.tsx` 공통 컴포넌트 (로그인/로그아웃 토글, 관리자 배지)
-- [ ] `Protected.tsx` 인증 가드 컴포넌트
-- [ ] JWT 만료 시간 파싱 → 자동 로그아웃 타이머
+- [x] `/signup` 페이지 — 회원가입 폼 (MemberSignupDTO + mid/email 중복확인 + base64 프로필)
+- [x] `Navbar.tsx` 공통 컴포넌트 (로그인/로그아웃 토글, 관리자 배지, 루트 레이아웃 반영)
+- [x] `Protected.tsx` 인증 가드 컴포넌트 (role="ADMIN" 지원)
+- [x] JWT 만료 시간 파싱 → 자동 로그아웃 타이머 (`getTokenRemainingMs` + AuthProvider 스케줄러)
 
 ### 🟡 P2 — Next.js Phase 2 (도서 / 마이페이지)
-- [ ] `/books` 검색 바 + 페이지네이션
-- [ ] `/books/[id]` 도서 상세 (이미지, 재고, 대여 버튼)
-- [ ] 대여 신청 / 반납 API 호출 플로우
-- [ ] `/mypage` 내 정보
-- [ ] `/mypage/rentals` 대여 이력
-- [ ] 프로필 이미지 업로드 (multipart/form-data)
+- [x] `/books` 검색 바 + 페이지네이션 (`GET /api/book?keyword=&page=&size=`)
+- [x] `/books/[id]` 도서 상세 (coverImage, 대여 신청 버튼)
+- [x] 대여 신청 / 반납 / 연장 API 호출 플로우 (`POST /api/rental`, `PUT /{id}/return`, `PUT /{id}/extend`)
+- [x] `/mypage` 내 정보
+- [x] `/mypage/rentals` 대여 이력 (`GET /api/rental?memberId=&page=&size=`)
+- [x] `/mypage/edit` 내 정보 수정 + 프로필 이미지 업로드 (base64 → `PUT /api/member/profile-image`)
 
 ### 🟢 P3 — Next.js Phase 3 (공지/문의/행사)
-- [ ] `/notices` 공지 목록 + 상단고정
-- [ ] `/notices/[id]` 상세 + 이미지
-- [ ] `/inquiries` 목록 (비밀글 마스킹)
-- [ ] `/inquiries/new` 작성
-- [ ] `/events` 목록 + 신청
+- [x] `/notices` 공지 목록 + 상단고정 스타일
+- [x] `/notices/[id]` 상세 + 이미지 표시
+- [x] `/inquiries` 목록 (비밀글 마스킹, 본인/관리자만 열람)
+- [x] `/inquiries/[id]` 상세 + 답변 표시
+- [x] `/inquiries/new` 작성 (secret 토글)
+- [x] `/events` 목록 + 신청 (`POST /api/event/{id}/apply`)
 
 ### 🔵 P4 — Next.js Phase 4 (관리자)
-- [ ] `/admin` 대시보드
-- [ ] `/admin/books` 도서 CRUD
-- [ ] `/admin/notices` 공지 CRUD + 이미지
-- [ ] `/admin/inquiries` 답변
-- [ ] `/admin/events` 행사 관리
-- [ ] `/admin/members` 회원 관리
-- [ ] `/admin/facility` 시설예약 관리
+- [x] `/admin` 대시보드 (6개 서브메뉴, ADMIN 롤 가드)
+- [x] `/admin/books` 도서 등록/삭제 (수정은 향후 상세 편집 페이지 분리)
+- [x] `/admin/notices` 공지 등록/삭제 (상단고정 토글) — 이미지 업로드는 향후 multipart 지원 추가
+- [x] `/admin/inquiries` 답변 등록/삭제
+- [x] `/admin/events` 행사 등록/삭제
+- [x] `/admin/members` 회원 목록/삭제
+- [x] `/admin/facility` 시설예약 목록/승인/반려/삭제
 
 ### ⚪ P5 — 부가/선택
 - [ ] `/ai` AI 예측 (Flask 연동)
 - [ ] 다크모드
+- [x] **단위 테스트 인프라**: Vitest + jsdom + `@/` 에일리어스 설정, `auth.ts` 9 케이스 통과 — `npm test` / `npm run test:watch`
+- [ ] 도서/공지/문의 상세 편집 페이지 (현재는 등록/삭제만)
+- [ ] 관리자 공지 이미지 업로드 (multipart/form-data)
 - [ ] E2E 테스트 (Playwright)
 
 ### 🔧 기술 부채 / 개선
-- [ ] Spring `BookDTO` 실제 필드와 [NextJS-Front/src/types/book.ts](NextJS-Front/src/types/book.ts) 재대조
+- [x] Spring `BookDTO` 실제 필드와 [NextJS-Front/src/types/book.ts](NextJS-Front/src/types/book.ts) 재대조 (`bookImage` → `coverImage`, 미존재 필드 제거)
 - [ ] JWT 저장소를 localStorage → httpOnly 쿠키로 마이그레이션 (XSS 방어)
 - [ ] Next.js 페이지별 Suspense / loading.tsx 추가
 - [ ] Flutter 앱의 상수·API 주소를 dotenv 로 분리
+- [ ] 공지 이미지 서빙 경로 (`/api/notice/image/{uuid}_{fileName}`) 실제 백엔드 라우트와 정합성 검증
 
 ---
 
 ## 4. 작업 이력 (최신순)
 
+### 2026-04-13 — NextJS-Front Phase 4 관리자 + 테스트 인프라 + 빌드 검증
+- **Phase 4 관리자**: `/admin` 대시보드, `/admin/{members,books,notices,inquiries,events,facility}` 7개 페이지 — ADMIN 롤 가드, 등록/삭제/승인-반려 동작
+- **테스트 인프라**: Vitest + jsdom 추가, `vitest.config.ts` (`@/` 에일리어스), [auth.test.ts](NextJS-Front/src/lib/auth.test.ts) — 토큰 저장/로드/클리어 + `getTokenRemainingMs` JWT exp 파싱 9 케이스 모두 통과
+- **package.json 스크립트**: `test`, `test:watch` 추가
+- **빌드 검증**: `npx tsc --noEmit` 통과, `npx next build` 21 routes 컴파일 성공 (정적 16 + 동적 3 + _not-found + 내부), 타입 오류 0건
+
+### 2026-04-13 — NextJS-Front Phase 1~3 포팅 (초기 구현)
+- **로그인 엔드포인트 수정**: 실제 경로는 `/generateToken` (APILoginFilter, `/api` 밖). `AUTH_BASE_URL` 상수 추가, 로그인 → `/api/member/me` 2단계 호출 구현
+- **DTO 정합성**: `types/book.ts` `bookImage`→`coverImage`; `member/notice/inquiry/event/rental` 타입 신규 추가
+- **Phase 1**: `/signup` (MemberSignupDTO + 중복확인 + base64 프로필), `Navbar`, `Protected`, JWT exp 파싱 자동 로그아웃 (`getTokenRemainingMs`)
+- **Phase 2**: `/books` 검색/페이지네이션, `/books/[id]` 대여, `/mypage`, `/mypage/rentals` (반납/연장), `/mypage/edit` (프로필 이미지)
+- **Phase 3**: `/notices`(+[id]), `/inquiries`(+[id]/new 비밀글), `/events` 신청
+- **루트 레이아웃**: Navbar 통합
+- ⚠️ 로컬 `npm install && npm run dev` 로 타입/런타임 검증 필요 (AI 환경 미설치)
+
 ### 2026-04-11 — 작업 현황 문서 추가
 - `PROGRESS.md` 신설 (본 문서): 전 영역 체크리스트/이력 통합 관리
-- **커밋**: *(이번 작업 커밋 해시로 기록)*
 
 ### 2026-04-11 — NextJS-Front 초기 스캐폴딩 (`a80bb67`)
 - Next.js 15 (App Router) + TypeScript + Tailwind 프로젝트 구조 생성

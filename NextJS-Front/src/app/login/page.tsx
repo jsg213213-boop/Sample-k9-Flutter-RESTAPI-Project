@@ -3,16 +3,19 @@
 import { useState, FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import axios from "axios";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { MemberInfo } from "@/lib/auth";
+import { AUTH_BASE_URL } from "@/constants/api";
 
 /**
  * 로그인 페이지
  *
- * Spring Boot MemberController 의 로그인 엔드포인트에 POST 합니다.
- * 응답에는 accessToken 및 회원 정보가 포함됩니다.
- * (실제 응답 필드명은 백엔드 구현에 따라 조정 필요)
+ * Spring Security APILoginFilter:
+ *   POST {AUTH_BASE_URL}/generateToken  body: { mid, mpw }
+ *   응답: { accessToken, refreshToken, profileImg? }
+ * 이후 GET /api/member/me?mid={mid} 로 회원 상세 취득.
  */
 export default function LoginPage() {
   const router = useRouter();
@@ -28,21 +31,37 @@ export default function LoginPage() {
     setError(null);
     setSubmitting(true);
     try {
-      // TODO: 백엔드 실제 경로/필드명에 맞게 수정
-      const res = await api.post<{
+      const tokenRes = await axios.post<{
         accessToken: string;
-        member: MemberInfo;
-      }>("/member/login", { mid, mpw });
+        refreshToken?: string;
+        profileImg?: string;
+      }>(`${AUTH_BASE_URL}/generateToken`, { mid, mpw }, { timeout: 10000 });
 
-      const { accessToken, member } = res.data;
-      if (!accessToken) {
-        throw new Error("토큰을 받지 못했습니다.");
-      }
-      login(accessToken, member);
+      const { accessToken, refreshToken, profileImg } = tokenRes.data;
+      if (!accessToken) throw new Error("토큰을 받지 못했습니다.");
+
+      const meRes = await api.get<MemberInfo>("/member/me", {
+        params: { mid },
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      const member: MemberInfo = {
+        ...meRes.data,
+        profileImg: meRes.data.profileImg ?? profileImg,
+      };
+
+      login(accessToken, member, refreshToken);
       router.push("/");
     } catch (err: unknown) {
-      const msg =
-        err instanceof Error ? err.message : "로그인 중 오류가 발생했습니다.";
+      let msg = "로그인 중 오류가 발생했습니다.";
+      if (axios.isAxiosError(err)) {
+        if (err.response?.status === 401 || err.response?.status === 403) {
+          msg = "아이디 또는 비밀번호가 올바르지 않습니다.";
+        } else if (err.message) {
+          msg = err.message;
+        }
+      } else if (err instanceof Error) {
+        msg = err.message;
+      }
       setError(msg);
     } finally {
       setSubmitting(false);
@@ -66,6 +85,7 @@ export default function LoginPage() {
             value={mid}
             onChange={(e) => setMid(e.target.value)}
             required
+            autoComplete="username"
             className="w-full rounded border border-gray-300 px-3 py-2 focus:border-brand-500 focus:outline-none"
           />
         </label>
@@ -79,6 +99,7 @@ export default function LoginPage() {
             value={mpw}
             onChange={(e) => setMpw(e.target.value)}
             required
+            autoComplete="current-password"
             className="w-full rounded border border-gray-300 px-3 py-2 focus:border-brand-500 focus:outline-none"
           />
         </label>
